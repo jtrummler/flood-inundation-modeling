@@ -1,0 +1,33 @@
+---
+title: "midterm"
+author: "Kate Tanabe & Jack Rummler"
+date: "2023-03-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries
+library(caret)
+library(pscl)
+library(plotROC)
+library(pROC)
+library(sf)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(FNN)
+library(scales)
+library(jtools)
+library(viridis)
+library(gridExtra)
+```
+
+```{r}
+cities <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/Assignment3/city_shapefile/City_Boundaries.shp") %>% st_transform('EPSG:3780')
+
+portland_boundary <- cities %>%
+  dplyr::filter(CITYNAME == "Portland")
+```
+
