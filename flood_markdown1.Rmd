@@ -1,0 +1,535 @@
+---
+title: "Forecasting Flood Inundation: Calgary, AL & Minneapolis, MN"
+author: "Kate Tanabe & Jack Rummler"
+date: "2023-03-29"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+#Introduction 
+Floods are frequent natural disasters that are costly to communities. Every year floods are responsible for fatalities and serious injuries, infrastructure and property damage, and transportation disruptions, especially when communities are unprepared for floods. Flooding can also cause pollution to water systems, landslides, and mudslides. The Department of Commerce and the National Oceanic and Atmospheric Association estimates that floods cost an average of $5 billion per year and more damage than other severe weather events [1]. Flooding will continue to threaten more communities, lives, and resources as climate changes progresses.
+
+#Motivation
+Planners are in a unique position to help communities become more resilient by predicting and preparing for flooding events. Planners can model flooding scenarios using techniques that simulate rainfall and flashfloods to identify the extent, direction, and accumulation points of flooding events. With these results, planners can identify areas and communities at risk of flooding and the associated impacts. Planners and community-based organizations can use this information to coordinate with local governments to communicate the technical details to communities, explain planning and redevelopment strategies, and empower communities to plan for floods. When cities understand their flood risk, they can take action to mitigate flooding impacts by understanding the current uses of areas at risk and develop plans to shift the land to uses that assist with flood mitigation in a manner that provides benefits to their community.  
+
+This exercise aims to determine the variables associated with flooding and build a linear model to identify areas at risk. We hope the application of this model provides a framework that planners can use to ensure that cities are prepared to minimize flooding impacts for the most vulnerable communities. We use a machine learning algorithm to predict which areas of a city are at risk of inundation during a flooding event. 
+
+We used historic flood data from the City of Calgary, Alberta to develop and test the accuracy of this model. We then apply this model to the City of Minneapolis, Minnesota and predict inundation risk there as a measure of generalizability. 
+
+#Set Up
+First, we load the necessary libraries and create fishnet grids for Calgary and Minneapolis. The fishnets are created using a cell size of 300. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+plotTheme1 <- function(base_size = 12, title_size = 16) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = title_size, colour = "black"), 
+    plot.subtitle = element_text(face="italic"),
+    plot.caption = element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+   panel.grid.major = element_line("grey60", size = 0.1),
+    panel.grid.minor = element_blank(),
+   panel.border = element_rect(colour = "black", fill=NA, size=1),
+    strip.background = element_rect(fill = "white", color = "NA"),
+    strip.text = element_text(size=12),
+    axis.title = element_text(size=12),
+    axis.text = element_text(size=10),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+      #axis.line.y.left   = element_line(color = 'black', size =1),
+    legend.title = element_text(colour = "black", face = "italic"),
+    legend.text = element_text(colour = "black", face = "italic"),
+    strip.text.x = element_text(size = 14)
+  )
+}
+  
+  mapTheme1 <- function(base_size = 12, title_size = 16) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = title_size,colour = "black"),
+    plot.subtitle=element_text(face="italic"),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line.y.left   = element_line(color = 'black', size =1),
+    panel.grid.minor = element_blank(),
+    strip.text.x = element_text(size = 14))
+}
+
+# load libraries
+library(caret)
+library(pscl)
+library(plotROC)
+library(pROC)
+library(sf)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(FNN)
+library(scales)
+library(jtools)
+library(viridis)
+library(gridExtra)
+library(raster)
+library(rgdal)
+
+#fishnets
+calgary_boundary <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/CALGIS_CITYBOUND_LIMIT.shp") %>%
+  st_transform('EPSG:3780')
+
+fishnet_calgary <- 
+  st_make_grid(calgary_boundary, cellsize = 300, square = TRUE) %>%
+  .[calgary_boundary] %>%
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+
+## below is for exporting fishnet shapefiles so we can join the flow_acc in ArcGIS (too big for R)
+#fishnet_calgary_output <- fishnet_calgary %>%
+#  st_as_sf()
+#sf::st_write(fishnet_calgary_output, "C:/calgary_fishnet.shp")
+
+minneapolis_boundary <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/City_Boundary.shp") %>%
+  st_transform('EPSG:3780')
+
+fishnet_minneapolis <- 
+  st_make_grid(minneapolis_boundary, cellsize = 300) %>%
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+```
+# Exploraty Analysis & Feature Engineering
+## Flood Data in Calgary 
+```{r}
+ggplot() +
+  geom_sf(data=calgary_boundary, fill="grey") +
+  geom_sf(data=calgary_fishnet, alpha=0.2) + mapTheme()
+```
+
+## Feature Engineering
+combine into one chunk and describe each process 
+```{r}
+#set up
+url <-"https://github.com/mafichman/CPLN_675/raw/main/Week_7_10/data/midTermProject_Data.zip"
+temp <- tempfile()
+temp2 <- tempfile()
+download.file(url, temp)
+unzip(zipfile = temp, exdir = temp2)
+
+#inundation raster
+calgary_flood <- raster(file.path(temp2, "midTermProject_Data/inundation")) 
+flood_reclass <-c(0, 0, 0,
+               1, 2, 1,
+               2, 3, 0)
+
+flood_reclass_matrix <-  matrix(flood_reclass, ncol = 3,
+                          byrow = TRUE)
+
+calgary_flood_reclass <- reclassify(calgary_flood,
+                       flood_reclass_matrix)
+
+flood.sf <- rasterToPolygons(calgary_flood_reclass, fun=function(x){x==1}) %>%
+  st_as_sf()
+
+fishnet_calg_centroid <- fishnet_calgary %>%
+  st_centroid()
+
+fishnet_calgary <- st_join(fishnet_calg_centroid, flood.sf %>% 
+                       st_transform(st_crs(fishnet_calg_centroid))) %>%
+  as.data.frame () %>%
+  dplyr::select(-geometry) %>%
+  right_join(., fishnet_calgary) %>%
+  mutate(COUNT = ifelse(is.na(COUNT) == TRUE, 0, COUNT))
+
+colnames(fishnet_calgary)[2] ="inundation"
+
+```
+
+```{r}
+#other features
+calgary_impervious <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/geo_export_52eb420a-052a-4b3f-b742-64699e23bb54.shp") %>%
+  st_transform('EPSG:3780')
+  
+calgary_parks <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/calgary_parks.geojson") %>%
+  st_transform('EPSG:3780')
+
+calgary_hydro <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/calgary_hydro.geojson") %>%
+  st_transform('EPSG:3780')
+
+calgary_elevation <- raster(file.path(temp2, "midTermProject_Data/calgaryDEM"))
+  
+calgary_fac <- st_read("C:/Users/admin/OneDrive - PennO365/Desktop/674EnvModeling/calgary_fishnet_fac.shp") %>%
+  st_transform('EPSG:3780') %>%
+  
+calgary_flowacc <- calgary_fac %>%
+  dplyr::select(uniqueID, gridcode)%>%
+  st_drop_geometry()
+
+```
+
+
+```{r}
+#distance to hyrdology 
+hydro_dist <- fishnet_calg_centroid %>% 
+  st_distance(calgary_hydro %>% 
+                st_transform(st_crs(fishnet_calg_centroid))) %>%
+  as.data.frame() %>%
+  mutate(uniqueID = as.character(row_number())) %>%
+  gather(-uniqueID, key = "variable", value = "value") %>%
+  dplyr::select(-variable) %>%
+  group_by(uniqueID) %>%
+  summarize(water_dist = min(value))
+
+fishnet_calgary <- left_join(fishnet_calgary, hydro_dist)
+```
+
+```{r}
+#parks - nearest neighbors -> not working right now
+
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+st_c <- st_coordinates
+st_coid <- st_centroid
+
+#fishnet_calgary.sf <- fishnet_calgary %>%
+#  st_as_sf()
+
+#fishnet_calg_parks <- fishnet_calgary.sf %>%
+#  dplyr::select(uniqueID, geometry)
+
+#parks object for fishnet
+#parks_fishnet <- calgary_parks %>%
+#  dplyr::select(geometry) %>%
+#  mutate(uniqueID = as.character(row_number()))
+
+#create centroids for parks 
+calgary_parks2 <- calgary_parks %>% 
+  st_centroid(geometry)
+
+fishnet_calgary.sf <-fishnet_calgary.sf %>%
+  mutate(parksnn3 <- nn_function(st_coordinates(st_centroid(fishnet_calgary.sf)), st_c(parks_fishnet),3))
+
+```
+
+
+```{r}
+#dem -> slope calculations
+calgary_slope <- raster::terrain(calgary_elevation, opt = 'slope', unit = 'degrees')
+
+#might need to reclassify this depending on minneapolis data
+
+calgary_slope_reclass <-c(0, 5, 0,
+              5, 30, 1)
+
+calgary_slope_matrix <-  matrix(calgary_slope_reclass, ncol = 3,
+                          byrow = TRUE)
+calgary_elevation_reclass <- reclassify(calgary_slope,
+                   calgary_slope_matrix)
+
+
+#joining slop to fishnet
+
+calgary_slope.sf <- rasterToPolygons(calgary_slope) %>%
+  st_as_sf()
+
+fishnet_calgary <- st_join(fishnet_calg_centroid, calgary_slope.sf %>% 
+          st_transform(st_crs(fishnet_calg_centroid))) %>%
+  as.data.frame () %>%
+  dplyr::select(-geometry) %>%
+  right_join(., fishnet_calgary) %>%
+  mutate(slope = (ifelse(is.na(slope) == TRUE, 0, 1))) %>%
+  mutate(slope = as.factor(slope))
+
+```
+
+```{r}
+#flow accumulation
+fishnet_calgary <- left_join(fishnet_calgary, calgary_flowacc, by="uniqueID")
+```
+
+```{r}
+#impervious surfaces
+calgary_impervious <- calgary_impervious %>%
+  dplyr::select(objectid, ldscmetric, geometry)
+
+fishnet_calgary <- st_join(fishnet_calg_centroid, calgary_impervious %>% 
+          st_transform(st_crs(fishnet_calg_centroid))) %>%
+  as.data.frame () %>%
+  dplyr::select(-geometry) %>%
+  right_join(., fishnet_calgary) %>%
+  mutate(impervious = (ifelse(ldscmetric == 'Permeable', 0, 1))) %>%
+  mutate(impervious = as.factor(impervious))
+```
+## Variables
+```{r}
+grid.arrange(ncol = 3,
+ggplot() +
+  geom_sf(data = calgary) +
+  geom_sf(data = cal_avgel,
+          aes(fill=zscalgav_4), 
+          colour=NA) +
+  scale_fill_viridis(option="mako", trans="reverse",
+                     name = "Mean") +
+  labs(title = "Average \n Elevation  ") +
+  mapTheme,
+
+ggplot() +
+  geom_sf(data = calgary) +
+  geom_sf(data = cal_fac,
+          aes(fill=zscalgfa_3), 
+          colour=NA) +
+  scale_fill_viridis(option="mako", trans = "reverse",
+                     name = "Mean") +
+  labs(title = "Flow \n Accumulation") +
+  mapTheme,
+
+ggplot() +
+  geom_sf(data = calgary) +
+  geom_sf(data = cal_slope,
+          aes(fill=zscalgsl_4), 
+          colour=NA,) +
+  scale_fill_viridis(option="mako", trans = "reverse",
+                     name = "Mean") +
+  labs(title = "Slope Degrees") +
+  mapTheme,
+
+ggplot() +
+  geom_sf(data = calgary) +
+  geom_sf(data = cal_strdist,
+          aes(fill=zscalgst_4), 
+          colour=NA) +
+  scale_fill_viridis(option="mako", trans = "reverse",
+                     name = "Mean") +
+  labs(title = "Distance From \n Stream") +
+  mapTheme,
+
+ggplot() +
+  geom_sf(data = calgary) +
+  geom_sf(data = cal_impervious,
+          aes(fill=zscalgim_4), 
+          colour=NA) +
+  scale_fill_viridis(option="mako", trans = "reverse",
+                     name = "Sum") +
+  labs(title = "Impervious \n Surface") +
+  mapTheme)
+```
+
+
+## Variable importance 
+```{r}
+calgaryPlotVariables <- 
+  calgary %>%
+  as.data.frame() %>%
+  dplyr::select(MAJORITY,facMean,avgel,slopeMean,strDist,impervSum) %>%
+  gather(variable, value, -MAJORITY)
+
+ggplot(calgaryPlotVariables %>%
+         group_by(MAJORITY, variable) %>%
+         summarize(mean = mean(value))) + 
+     geom_bar(aes(as.factor(MAJORITY), 
+                  mean, 
+                  fill=as.factor(MAJORITY)),
+              stat="identity") + 
+     facet_wrap(~variable, ncol = 5, scales = "free") +
+    labs(title = "Exploratory Analysis of Features", 
+          caption="Without Feature Engineer") +
+     scale_fill_manual(values = c("light blue", "dark blue"),
+                      labels = c("Not Flooded","Flooded"),
+                      name = "") +
+    labs(x="Preserved", y="Value")
+```
+
+# Model Building
+```{r}
+#setting up datasets
+
+set.seed(1487)
+trainIndex <- createDataPartition(fishnet_calgary$MAJORITY, p = .70,
+                                  list = FALSE,
+                                  times = 1)
+calgaryTrain <- calgary[ trainIndex,]
+calgaryTest  <- calgary[-trainIndex,]
+```
+
+```{r}
+#building model - NEED TO ADJUST WITH OUR DATA
+
+options(scipen=999)
+
+calgaryModel <- glm(MAJORITY ~ distance + slope + flow + pervious + elevation,
+                    family="binomial"(link="logit"), data = calgaryTrain %>%
+                      as.data.frame %>%
+                      dplyr::select(-AREA, -geometry, -strDist, -facMean, -slopeMean, -impervSum, -avgel))
+
+summary(calgaryModel)
+```
+
+
+# Model Results
+## Model summary 
+```{r}
+summ(inundationModel) 
+-> FILL OUT EVERYTHING BELOW WITH OUT DATA
+```
+
+## Cross Validation
+```{r}
+ctrl <- trainControl(method = "cv", 
+                     number = 100, 
+                     savePredictions = TRUE)
+
+cvFit <- train(as.factor(MAJORITY) ~ .,  data = calgary %>% 
+                                                as.data.frame() %>%
+                                                dplyr::select(-AREA, -geometry, -strDist, -facMean, -slopeMean, -impervSum, -avgel), 
+               method="glm", family="binomial",
+               trControl = ctrl)
+
+cvFit
+```
+
+```{r}
+ggplot(as.data.frame(cvFit$resample), aes(Accuracy)) + 
+  geom_histogram() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Accuracy",
+       y="Count")+
+  plotTheme
+```
+
+## Histogram of Probability Predictions
+```{r}
+classProbs <- predict(inundationModel, calgaryTest, type="response")
+
+hist((classProbs), main = paste("Histogram of classProbs"), col = "blue", xlab = "Inundation Probability") + plotTheme()
+```
+
+## Density of Probability Distribution
+```{r}
+testProbs <- data.frame(obs = as.numeric(calgaryTest$inundation),
+                        pred = classProbs,
+                        ID_FISHNET = calgaryTest$ID_FISHNET)
+
+ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
+  facet_grid(obs ~ .) + xlab("Probability") + geom_vline(xintercept = .38) +
+  scale_fill_manual(values = c("darkgreen", "navy"),
+                      labels = c("Not Flooded","Flooded"),
+                                 name="") +
+                      labs(title = "Distribution of Probabilities") + plotTheme()
+```
+
+## Confusion Matrix
+writing: Confusion matrix table... 
+```{r}
+ADD table with descriptions -> from old markdowns
+```
+
+writing; Confusion matrix outcomes... 
+```{r}
+as.matrix(xtab.regCalgary) %>% kable(caption = "Confusion Matrix") %>% kable_styling("striped", full_width = T, font_size = 14, position = "left")
+```
+
+## ROC Curve
+writing
+```{r}
+ggplot(testProbs, aes(d = obs, m = pred)) + 
+  geom_roc(n.cuts = 50, labels = FALSE, color = 'blue') + 
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') 
+```
+
+
+# Predictions
+```{r}
+allPredictions <- 
+  predict(cvFit, calgary, type="prob")[,2]
+  
+calgary <- 
+  cbind(calgary,allPredictions) %>%
+  mutate(allPredictions = round(allPredictions * 100))
+
+calgary1 <- calgary %>%
+  mutate(PredClass = ifelse(allPredictions > 10, 1, 0))
+
+calgary1 <- calgary1 %>%
+  mutate(Correct = ifelse(PredClass == MAJORITY, "1", "0"),
+         Incorrect = ifelse(PredClass != MAJORITY, "1", "0"))
+
+
+
+gplot() + 
+    geom_sf(data=calgary, aes(fill=factor(ntile(allPredictions,5))), 
+            colour=NA) +
+    scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF","#0B0405FF"),
+                      labels=as.character(quantile(calgary$allPredictions,
+                                                 c(0.1,.2,.4,.6,.8),
+                                                 na.rm=T)),
+                      name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
+  mapTheme +
+   labs(title="Predicted Flooded Areas in Calgary")
+
+```
+
+Confusion Metrics -> Calgary
+```{r}
+calgary %>%
+  mutate(confResult=case_when(allPredictions < 50 & MAJORITY==0 ~ "True_Negative",
+                              allPredictions >= 50 & MAJORITY==1 ~ "True_Positive",
+                              allPredictions < 50 & MAJORITY==1 ~ "False_Negative",
+                              allPredictions >= 50 & MAJORITY==0 ~ "False_Positive")) %>%
+  ggplot()+
+  geom_sf(aes(fill = confResult), color = "transparent")+
+  scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF"),
+                    name="Outcomes")+
+  labs(title="Confusion Metrics For Calgary") +
+  mapTheme
+```
+
+## Confusion Metrics -> Minneapolis
+```{r}
+calgary %>%
+  mutate(confResult=case_when(allPredictions < 50 & MAJORITY==0 ~ "True_Negative",
+                              allPredictions >= 50 & MAJORITY==1 ~ "True_Positive",
+                              allPredictions < 50 & MAJORITY==1 ~ "False_Negative",
+                              allPredictions >= 50 & MAJORITY==0 ~ "False_Positive")) %>%
+  ggplot()+
+  geom_sf(aes(fill = confResult), color = "transparent")+
+  scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF"),
+                    name="Outcomes")+
+  labs(title="Confusion Metrics For Calgary") +
+  mapTheme
+```
+
+
+## Predictions for Minneapolis, MN
+```{r}
+plvc_allPredictions <- 
+  predict(cvFit, plvc, type="prob")[,2] 
+
+plvc <- 
+  cbind(plvc,plvc_allPredictions) %>% 
+  mutate(plvc_allPredictions = round(plvc_allPredictions * 100))
+
+ggplot() + 
+  geom_sf(data=plvc, aes(fill=factor(ntile(plvc_allPredictions,5))), 
+          colour=NA) +
+  scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF","#0B0405FF"),
+                    labels=as.character(quantile(plvc$plvc_allPredictions,
+                                                 c(0.1,.2,.4,.6,.8),
+                                                 na.rm=T)),
+                    name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
+  mapTheme +
+  labs(title="Predicted Flooded Areas in Portland-Vancouver")
+```
+
+Spatial Cross Validation 
+
+# Discussion & Conclusion 
+blah blah blah
+
+
+[1] https://community.fema.gov/ProtectiveActions/s/article/Flood-Impact#:~:text=Floods%20can%20cause%20power%2C%20water,problems%20including%20landslides%20and%20mudslides.
