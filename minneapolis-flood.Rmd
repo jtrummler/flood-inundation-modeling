@@ -1,0 +1,227 @@
+---
+title: "Minneapolis Flood Inundation"
+author: "Jack Rummler & Kate Tanabe"
+date: "2023-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(raster)
+library(rgdal)
+library(gridExtra)
+
+mapTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 14,colour = "black"),
+    plot.subtitle=element_text(face="italic"),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=2)
+  )
+}
+
+plotTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 14,colour = "black"),
+    plot.subtitle = element_text(face="italic"),
+    plot.caption = element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major = element_line("grey80", size = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=2),
+    strip.background = element_rect(fill = "grey80", color = "white"),
+    strip.text = element_text(size=12),
+    axis.title = element_text(size=12),
+    axis.text = element_text(size=10),
+    plot.background = element_blank(),
+  #  legend.background = element_blank(),
+    legend.title = element_text(colour = "black", face = "italic"),
+    legend.text = element_text(colour = "black", face = "italic"),
+    strip.text.x = element_text(size = 14)
+  )
+}
+```
+
+# Minneapolis Fishnet
+
+```{r}
+minneapolis <- 
+  st_read("C:/Users/jtrum/pennmusa/CPLN6750/assignments/midterm_local/mpls_github/mpls_boundary/City_Boundary.shp") %>%
+  st_transform('ESRI:102271') 
+
+mpls_fn <- 
+  st_make_grid(minneapolis, 
+               cellsize = 300,
+               square = TRUE) %>%
+  .[minneapolis] %>%
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+
+mpls_fn_centroid <- mpls_fn %>%
+  st_centroid()
+
+
+
+ggplot()+
+  geom_sf(data=mpls_fn)+
+  labs(title="Fishnet (Minneapolis, MN)")+
+  mapTheme()
+
+sf::st_write(mpls_fn,"~/fishnet.shp", append=FALSE)
+```
+
+# DEM
+
+```{r}
+dem_mpls <- read_sf("C:/Users/jtrum/Desktop/CPLN6750/minneapolis/gis_outputs/fishnet_to_dem/dem.shp") %>%
+  dplyr::select(-c(dem_Rowid, dem_UNIQUE, dem_ZONE_C, dem_COUNT, dem_AREA, geometry)) %>%
+  dplyr::rename(dem = dem_MAX) %>%
+  st_drop_geometry()
+
+
+mpls_fn_dem <- left_join(mpls_fn, dem_mpls, by = "uniqueID")
+
+mapA <- ggplot() +
+  geom_sf(data = mpls_fn_dem, 
+          aes(fill = dem),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Max elevation") +
+  labs(title="Digital Elevation Model")+
+  mapTheme()
+```
+
+# Land Cover
+
+Land cover data was taken from Minnesota Land Cover Classification System (MLCCS) and cropped to the city of Minneapolis. Impervious versus pervious classification was completed in ArcGIS Pro.
+
+```{r}
+lc_mpls <- read_sf("C:/Users/jtrum/Desktop/CPLN6750/minneapolis/gis_outputs/fishnet_to_landclass/fishnet_to_landclass.shp") %>%
+  dplyr::select(-c(land_class, land_cla_1, land_cla_2, land_cla_3, land_cla_4, geometry)) %>%
+  dplyr::rename(pervious = land_cla_5) %>%
+  st_drop_geometry()
+
+lc_mpls$pervious <- ifelse(lc_mpls$pervious %in% c(0, 1), "pervious", "impervious")
+
+mpls_fn_landcover <- left_join(mpls_fn, lc_mpls, by = "uniqueID")
+
+mapB <- ggplot() +
+  geom_sf(data = mpls_fn_landcover, 
+          aes(fill = as.factor(pervious)),
+          color=NA) +
+  scale_fill_viridis_d(option = "G",
+                       name = "Majority Value") +
+  labs(title="Land Cover based on majority perviousness")+
+  mapTheme()
+```
+
+# Distance - Parks
+
+```{r}
+parks_mpls <- read_sf("C:/Users/jtrum/Desktop/CPLN6750/minneapolis/gis_outputs/fishnet_to_parks/fishnet_to_parks.shp") %>%
+  dplyr::select(-c(NEAR_FID)) %>%
+  dplyr::rename(dist_parks = NEAR_DIST) %>%
+  st_drop_geometry()
+
+land_cover$pervious <- ifelse(land_cover$pervious %in% c(0, 1), "pervious", "impervious")
+
+mpls_fn_parks<- left_join(mpls_fn, parks_mpls, by = "uniqueID")
+
+mapC <- ggplot() +
+  geom_sf(data = mpls_fn_parks, 
+          aes(fill = dist_parks),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Distance (meters)") +
+  labs(title="Distance to Nearest Park")+
+  mapTheme()
+```
+
+# Distance - Hydrology
+
+```{r}
+water_mpls <- read_sf("C:/Users/jtrum/Desktop/CPLN6750/minneapolis/gis_outputs/fishnet_to_water/fishnet_to_water.shp") %>%
+  dplyr::select(-c(NEAR_FID)) %>%
+  dplyr::rename(dist_water = NEAR_DIST) %>%
+  st_drop_geometry()
+
+mpls_fn_water <- left_join(mpls_fn, water_mpls, by = "uniqueID")
+
+mapD <-ggplot() +
+  geom_sf(data = mpls_fn_water, 
+          aes(fill = dist_water),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Distance (meters)") +
+  labs(title="Distance to Nearest Hydrological Feature")+
+  mapTheme()
+```
+
+# % Slope
+```{r}
+slope_mpls <- read_sf("C:/Users/jtrum/Desktop/CPLN6750/minneapolis/gis_outputs/fishnet_to_slope/slope.shp") %>%
+  dplyr::select(-c(slope_Rowi, slope_UNIQ, slope_ZONE, slope_COUN, slope_AREA, geometry)) %>%
+  dplyr::rename(slope = slope_MEAN) %>%
+  st_drop_geometry()
+
+mpls_fn_slope <- left_join(mpls_fn, slope_mpls, by = "uniqueID")
+
+mapE <- ggplot() +
+  geom_sf(data = mpls_fn_slope, 
+          aes(fill = slope),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Mean % change") +
+  labs(title="Digital Elevation Model")+
+  mapTheme()
+```
+
+# Flow Accumulation 
+
+```{r}
+fac_mpls <- read_sf("C:/Users/jtrum/Desktop/CPLN6750/minneapolis/gis_outputs/fishnet_to_fac/fac.shp") %>%
+  dplyr::select(-c(fac_Rowid, fac_UNIQUE, fac_ZONE_C, fac_COUNT, fac_AREA, geometry)) %>%
+  dplyr::rename(fac = fac_MAX) %>%
+  st_drop_geometry()
+
+mpls_fn_fac <- left_join(mpls_fn, fac_mpls, by = "uniqueID")
+
+mapF <- ggplot() +
+  geom_sf(data = mpls_fn_fac, 
+          aes(fill = fac),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Max flow") +
+  labs(title="Flow Accumulation")+
+  mapTheme()
+```
+
+# Map of Variables
+
+```{r}
+grid.arrange(ncol=3,
+             mapA, mapB, mapC, mapD, mapE, mapF)
+```
+
+```{r}
+# Merging fishnet data together
+mpls_fishnet <- merge(mpls_fn, dem_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, slope_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, fac_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, parks_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, water_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, lc_mpls, by="uniqueID")
+```
+
