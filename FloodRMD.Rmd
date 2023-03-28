@@ -1,0 +1,649 @@
+---
+title: "Untitled"
+author: "Kate Tanabe"
+date: "2023-03-27"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+setwd("C:/")
+unlink(".RData")
+
+knitr::opts_chunk$set(echo = TRUE)
+
+mapTheme3 <- theme(plot.title =element_text(size=12),
+                  plot.subtitle = element_text(size=8),
+                  plot.caption = element_text(size = 6),
+                  axis.line=element_blank(),
+                  axis.text.x=element_blank(),
+                  axis.text.y=element_blank(),
+                  axis.ticks=element_blank(),
+                  axis.title.x=element_blank(),
+                  axis.title.y=element_blank(),
+                  panel.background=element_blank(),
+                  panel.border=element_blank(),
+                  panel.grid.major=element_line(colour = 'transparent'),
+                  panel.grid.minor=element_blank(),
+                  legend.direction = "vertical", 
+                  legend.position = "right",
+                  plot.margin = margin(1, 1, 1, 1, 'cm'),
+                  legend.key.height = unit(1, "cm"), legend.key.width = unit(0.2, "cm"))
+
+plotTheme <- theme(
+  plot.title =element_text(size=12),
+  plot.subtitle = element_text(size=8),
+  plot.caption = element_text(size = 6),
+  axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+  axis.text.y = element_text(size = 10),
+  axis.title.y = element_text(size = 10),
+  # Set the entire chart region to blank
+  panel.background=element_blank(),
+  plot.background=element_blank(),
+  #panel.border=element_rect(colour="#F0F0F0"),
+  # Format the grid
+  panel.grid.major=element_line(colour="#D0D0D0",size=.75),
+  axis.ticks=element_blank())
+
+plotTheme1 <- function(base_size = 12, title_size = 16) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = title_size, colour = "black"), 
+    plot.subtitle = element_text(face="italic"),
+    plot.caption = element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+   panel.grid.major = element_line("grey60", size = 0.1),
+    panel.grid.minor = element_blank(),
+   panel.border = element_rect(colour = "black", fill=NA, size=1),
+    strip.background = element_rect(fill = "white", color = "NA"),
+    strip.text = element_text(size=12),
+    axis.title = element_text(size=12),
+    axis.text = element_text(size=10),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+      #axis.line.y.left   = element_line(color = 'black', size =1),
+    legend.title = element_text(colour = "black", face = "italic"),
+    legend.text = element_text(colour = "black", face = "italic"),
+    strip.text.x = element_text(size = 14)
+  )
+}
+  
+plotTheme2 <- function(base_size = 12, title_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = title_size, colour = "black"), 
+    plot.subtitle = element_text(face="italic"),
+    plot.caption = element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+   panel.grid.major = element_line("grey60", size = 0.1),
+    panel.grid.minor = element_blank(),
+   panel.border = element_rect(colour = "black", fill=NA, size=1),
+    strip.background = element_rect(fill = "white", color = "NA"),
+    strip.text = element_text(size=12),
+    axis.title = element_text(size=12),
+    axis.text = element_text(size=10),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+      #axis.line.y.left   = element_line(color = 'black', size =1),
+    legend.title = element_text(colour = "black", face = "italic"),
+    legend.text = element_text(colour = "black", face = "italic"),
+    strip.text.x = element_text(size = 10)
+  )
+}
+
+  mapTheme1 <- function(base_size = 12, title_size = 16) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = title_size,colour = "black"),
+    plot.subtitle = element_text(size=8),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line.y.left   = element_line(color = 'black', size =1),
+    panel.grid.minor = element_blank(),
+    strip.text.x = element_text(size = 14))
+}
+  
+  
+  
+    mapTheme2 <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 12,colour = "black"),
+    plot.subtitle = element_text(size=8),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.line.y.left   = element_line(color = 'black', size =1),
+    panel.grid.minor = element_blank(),
+    strip.text.x = element_text(size = 10),
+    legend.direction = "vertical", 
+                  legend.position = "right",
+                  plot.margin = margin(1, 1, 1, 1, 'cm'),
+                  legend.key.height = unit(1, "cm"), legend.key.width = unit(0.2, "cm"))
+}
+
+# load libraries
+library(caret)
+library(pscl)
+library(plotROC)
+library(pROC)
+library(sf)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(FNN)
+library(scales)
+library(jtools)
+library(viridis)
+library(gridExtra)
+library(raster)
+library(rgdal)
+  
+colors <- c("#2F4858", "#1372A4", "#86BBD8", "#A8C686","#E75E15")
+
+```
+
+```{r}
+fishnet_calgary <- st_read("C:/fishnet_calgary_data.geojson") %>%
+  st_transform('EPSG:3780')
+
+fishnet_calgary$slope <- as.factor(fishnet_calgary$slope)
+fishnet_calgary$impervious <- as.factor(fishnet_calgary$impervious)
+fishnet_calgary$inundation <- as.factor(fishnet_calgary$inundation)
+fishnet_calgary$log_flow_acc <- log(fishnet_calgary$flow_acc)
+fishnet_calgary$log_flow_acc <- ifelse(fishnet_calgary$log_flow_acc <= 0, 0, fishnet_calgary$log_flow_acc)
+fishnet_calgary$log_parks_dist <- log(fishnet_calgary$parks_dist)
+fishnet_calgary$log_water_dist <- log(fishnet_calgary$water_dist)
+fishnet_calgary$log_parks_dist <- ifelse(fishnet_calgary$log_parks_dist <= 0, 0, fishnet_calgary$log_parks_dist)
+fishnet_calgary$log_water_dist <- ifelse(fishnet_calgary$log_water_dist <= 0, 0, fishnet_calgary$log_water_dist)
+
+fishnet_calgary.sf <- fishnet_calgary %>%
+  st_as_sf()
+
+```
+
+```{r}
+minneapolis <- 
+  st_read("C:/Flood/City_Boundary.shp") %>%
+  st_transform('ESRI:102271') 
+
+mpls_fn <- 
+  st_make_grid(minneapolis, 
+               cellsize = 300,
+               square = TRUE) %>%
+  .[minneapolis] %>%
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+
+mpls_fn_centroid <- mpls_fn %>%
+  st_centroid()
+
+# DEM
+dem_mpls <- read_sf("C:/Flood/fishnet_to_dem/dem.shp") %>%
+  dplyr::select(-c(dem_Rowid, dem_UNIQUE, dem_ZONE_C, dem_COUNT, dem_AREA, geometry)) %>%
+  dplyr::rename(dem = dem_MAX) %>%
+  st_drop_geometry()
+
+
+mpls_fn_dem <- left_join(mpls_fn, dem_mpls, by = "uniqueID")
+
+mapA <- ggplot() +
+  geom_sf(data = mpls_fn_dem, 
+          aes(fill = dem),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Max elevation") +
+  labs(title="Digital Elevation Model")+
+  mapTheme1()
+
+# Land Cover
+#Land cover data was taken from Minnesota Land Cover Classification System (MLCCS) and cropped to the city of Minneapolis. Impervious versus pervious classification was completed in ArcGIS Pro.
+
+lc_mpls <- read_sf("C:/Flood/fishnet_to_landclass/fishnet_to_landclass.shp") %>%
+  dplyr::select(-c(land_class, land_cla_1, land_cla_2, land_cla_3, land_cla_4, geometry)) %>%
+  dplyr::rename(pervious = land_cla_5) %>%
+  st_drop_geometry()
+
+lc_mpls$pervious <- ifelse(lc_mpls$pervious %in% c(0, 1), "pervious", "impervious")
+
+mpls_fn_landcover <- left_join(mpls_fn, lc_mpls, by = "uniqueID")
+
+mapB <- ggplot() +
+  geom_sf(data = fishnet_minneapolis.sf, 
+          aes(fill = as.factor(impervious)),
+          color=NA) +
+  scale_fill_viridis_d(option = "G",
+                       name = "Factor",
+                       labels = c("Pervious","Impervious"),) +
+  labs(title="\nLand Cover")+
+  mapTheme1()
+
+# Distance - Parks
+parks_mpls <- read_sf("C:/Flood/fishnet_to_parks/fishnet_to_parks.shp") %>%
+  dplyr::select(-c(NEAR_FID)) %>%
+  dplyr::rename(dist_parks = NEAR_DIST) %>%
+  st_drop_geometry()
+
+mpls_fn_parks<- left_join(mpls_fn, parks_mpls, by = "uniqueID")
+
+mapC <- ggplot() +
+  geom_sf(data = mpls_fn_parks, 
+          aes(fill = dist_parks),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Distance (Meters)") +
+  labs(title="Distance to \nNearest Park")+
+  mapTheme1()
+
+# Distance - Hydrology
+
+water_mpls <- read_sf("C:/Flood/fishnet_to_water/fishnet_to_water.shp") %>%
+  dplyr::select(-c(NEAR_FID)) %>%
+  dplyr::rename(dist_water = NEAR_DIST) %>%
+  st_drop_geometry()
+
+mpls_fn_water <- left_join(mpls_fn, water_mpls, by = "uniqueID")
+
+mapD <-ggplot() +
+  geom_sf(data = mpls_fn_water, 
+          aes(fill = dist_water),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Distance (meters)") +
+  labs(title="Distance to Nearest\nHydrological Feature")+
+  mapTheme1()
+
+#slope
+
+slope_mpls <- read_sf("C:/Flood/fishnet_to_slope/slope.shp") %>%
+  dplyr::select(-c(slope_Rowi, slope_UNIQ, slope_ZONE, slope_COUN, slope_AREA, geometry)) %>%
+  dplyr::rename(slope = slope_MEAN) %>%
+  st_drop_geometry()
+
+mpls_fn_slope <- left_join(mpls_fn, slope_mpls, by = "uniqueID")
+
+mapE <- ggplot() +
+  geom_sf(data = mpls_fn_slope, 
+          aes(fill = slope),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Mean % Change") +
+  labs(title="\nSlope")+
+  mapTheme1()
+
+# Flow Accumulation 
+fac_mpls <- read_sf("C:/Flood/fishnet_to_fac/fac.shp") %>%
+  dplyr::select(-c(fac_Rowid, fac_UNIQUE, fac_ZONE_C, fac_COUNT, fac_AREA, geometry)) %>%
+  dplyr::rename(fac = fac_MAX) %>%
+  st_drop_geometry()
+
+mpls_fn_fac <- left_join(mpls_fn, fac_mpls, by = "uniqueID")
+
+mapF <- ggplot() +
+  geom_sf(data = mpls_fn_fac, 
+          aes(fill = fac),
+          color=NA) +
+  scale_fill_viridis_c(option = "G",
+                       name = "Max Flow") +
+  labs(title="\nFlow Accumulation")+
+  mapTheme1()
+
+# Merging fishnet data together
+mpls_fishnet <- merge(mpls_fn, dem_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, slope_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, fac_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, parks_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, water_mpls, by="uniqueID")
+mpls_fishnet <- merge(mpls_fishnet, lc_mpls, by="uniqueID")
+
+colnames(mpls_fishnet)[4] ="flow_acc"
+mpls_fishnet$impervious <- ifelse(mpls_fishnet$pervious =='impervious',1,0)
+mpls_fishnet$slope1 <- ifelse(mpls_fishnet$slope >= 5, 1, 0)
+fishnet_minneapolis <- mpls_fishnet %>%
+  dplyr::select(uniqueID, flow_acc, dist_water, dist_parks, impervious, slope1, geometry)
+colnames(fishnet_minneapolis)[6] ="slope"
+colnames(fishnet_minneapolis)[3] ="water_dist"
+colnames(fishnet_minneapolis)[4] ="parks_dist"
+fishnet_minneapolis$slope <- as.factor(fishnet_minneapolis$slope)
+fishnet_minneapolis$impervious <- as.factor(fishnet_minneapolis$impervious)
+fishnet_minneapolis.sf <- fishnet_minneapolis %>%
+  st_as_sf()
+
+fishnet_minneapolis$log_flow_acc <- log(fishnet_minneapolis$flow_acc)
+fishnet_minneapolis$log_flow_acc <- ifelse(fishnet_minneapolis$log_flow_acc <= 0, 0, fishnet_minneapolis$log_flow_acc)
+fishnet_minneapolis$log_parks_dist <- log(fishnet_minneapolis$parks_dist)
+fishnet_minneapolis$log_water_dist <- log(fishnet_minneapolis$water_dist)
+fishnet_minneapolis$log_parks_dist <- ifelse(fishnet_minneapolis$log_parks_dist <= 0, 0, fishnet_minneapolis$log_parks_dist)
+fishnet_minneapolis$log_water_dist <- ifelse(fishnet_minneapolis$log_water_dist <= 0, 0, fishnet_minneapolis$log_water_dist)
+
+```
+
+# Exploraty Analysis & Feature Engineering
+## Calgary Data
+```{r}
+ggplot() + 
+ # geom_sf(data=fishnet_calgary.sf, fill = "#86BBD8") +
+  geom_sf(data = fishnet_calgary.sf, aes(fill=as.factor(inundation)), color = "transparent")+
+  scale_fill_manual(values = c("#A8C686", "#1372A4"),
+                    labels = c("Not Flooded","Flooded"),
+                    name = "") +
+  labs(title="Observed Flooding in Calgary") +
+  mapTheme1()
+```
+
+## Variables
+```{r}
+mapAA <- ggplot() +
+  geom_sf(data = fishnet_calgary.sf, aes(fill = parks_dist), color=NA) +
+  scale_fill_gradient(low =  "#86BBD8" , high = "#2F4858")+
+  labs(title = "Distance to \nNearest Park", fill="Distance \n(meters)") + mapTheme1()
+
+
+mapBB <- ggplot() +
+  geom_sf(data = fishnet_calgary.sf, 
+          aes(fill = as.factor(impervious)),
+          color=NA) +
+   scale_fill_manual(values = c("#86BBD8","#2F4858"), name = "Factor")+
+  labs(title="Land Cover\n")+
+  mapTheme1()
+
+mapCC <- ggplot() +
+  geom_sf(data = fishnet_calgary.sf, 
+          aes(fill = parks_dist),
+          color=NA) +
+  scale_fill_gradient(low =  "#86BBD8" , high = "#2F4858",
+                       name = "Distance (Meters)") +
+  labs(title="Distance to Nearest Park")+
+  mapTheme1()
+
+mapDD <-ggplot() +
+  geom_sf(data = fishnet_calgary.sf, 
+          aes(fill = water_dist),
+          color=NA) +
+  scale_fill_gradient(low =  "#86BBD8" , high = "#2F4858",
+                       name = "Distance (Meters)")
+  labs(title="Distance to Nearest\nHydrological Feature")+
+  mapTheme1()
+
+mapEE <- ggplot() +
+  geom_sf(data = fishnet_calgary.sf, 
+          aes(fill = slope))+
+ scale_fill_manual(values = c("#86BBD8","#2F4858"), name = "Factor")+
+  labs(title="Slope\n")+
+  mapTheme1()
+
+
+mapFF <- ggplot() +
+  geom_sf(data = fishnet_calgary.sf, 
+          aes(fill = flow_acc),
+          color=NA) +
+  scale_fill_gradient(low =  "#86BBD8" , high = "#2F4858",
+                       name = "Max Flow")
+  labs(title="Flow Accumulation\n")+
+  mapTheme1()
+
+grid.arrange(ncol = 3, mapAA, mapCC, mapDD, mapEE, mapFF) 
+#  labs(title="Minneapolis Variables")+
+  mapTheme1()
+```
+
+```{r}
+grid.arrange(ncol = 3, mapB, mapC, mapD, mapE, mapF) +
+#  labs(title="Minneapolis Variables")+
+  mapTheme1()
+
+```
+
+
+## Variable importance 
+```{r}
+fishnet_calgary.nogeom <- fishnet_calgary.sf %>%
+  st_drop_geometry()
+
+fishnet_calgary.nogeom %>%
+  dplyr::select(inundation, water_dist, parks_dist, flow_acc) %>%
+    gather(Variable, value, -inundation) %>%
+    count(Variable, value, inundation) %>%
+      ggplot(., aes(value, n, fill = inundation)) +   
+        geom_bar(position = "dodge", stat="identity") +
+        facet_wrap(~Variable, scales="free") +
+        #scale_fill_manual(values = c("#E99191", "#E91C1C")) +
+        labs(x="Inundation", y="Value",
+             title = "") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+fishnet_calgary.nogeom %>%
+    dplyr::select(inundation, slope, impervious) %>%
+    gather(Variable, value, -inundation) %>%
+    count(Variable, value, inundation) %>%
+      ggplot(., aes(value, n, fill = inundation)) +   
+        geom_bar(position = "dodge", stat="identity") +
+        facet_wrap(~Variable, scales="free") +
+       # scale_fill_discrete(values = c("#E99191")) +
+        labs(x="Inundation", y="Value",
+             title = "") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Model Building
+```{r}
+#setting up data partition 
+
+set.seed(634)
+trainIndex <- createDataPartition(fishnet_calgary$inundation, p = .70,
+                                  list = FALSE,
+                                  times = 1)
+calgaryTrain <- fishnet_calgary[ trainIndex,]
+calgaryTest  <- fishnet_calgary[-trainIndex,]
+```
+
+```{r}
+#building model 
+
+options(scipen=999)
+
+calgaryModel <- glm(inundation ~ log_flow_acc + log_water_dist + slope + log_parks_dist + impervious,
+                    family="binomial"(link="logit"), data = calgaryTrain %>%
+                      as.data.frame %>%
+                      dplyr::select(-objectid, -geometry, -ldscmetric))
+```
+
+
+# Model Results
+## Model summary 
+```{r}
+summary(calgaryModel)
+```
+
+## Histogram of Probability Predictions
+```{r}
+classProbs <- predict(calgaryModel, calgaryTest, type="response")
+
+hist((classProbs), main = paste("Histogram of Predictions"), col = "#86BBD8", xlab = "Inundation Probability") + plotTheme1()
+```
+
+## Density of Probability Distribution
+```{r}
+testProbs <- data.frame(obs = as.numeric(calgaryTest$inundation),
+                        pred = classProbs,
+                        uniqueID = calgaryTest$uniqueID)
+testProbs$obs <- ifelse(calgaryTest$inundation == 1, 1, 0)
+
+ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
+  facet_grid(obs ~ .) + xlab("Probability") + ylab("Density") + geom_vline(xintercept = .38) +
+  scale_fill_manual(values = c("#A8C686", "#86BBD8"),
+                      labels = c("Not Flooded","Flooded"),
+                                 name="") +
+                      labs(title = "Distribution of Probabilities") + plotTheme1()
+```
+
+## Confusion Matrix 
+#### might need to figure out different presentation for confusion matrix
+Confusion matrix results table... 
+```{r}
+testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+
+caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+```
+
+## ROC Curve
+writing....
+```{r}
+ggplot(testProbs, aes(d = obs, m = pred)) + 
+  geom_roc(n.cuts = 50, labels = FALSE, color = "#86BBD8") + 
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = "#2F4858") 
+```
+
+## AUC
+```{r}
+auc(testProbs$obs, testProbs$pred)
+```
+
+
+## Cross Validation
+```{r}
+#rm(calgary_slope.sf, flood.sf)
+#gc()
+ctrl <- trainControl(method = "cv", 
+                     number = 100, 
+                     savePredictions = TRUE,
+                     returnData = FALSE)
+
+cvdata <- fishnet_calgary %>% 
+  as.data.frame() %>%
+  dplyr::select(-objectid, -geometry, -ldscmetric, -uniqueID) %>%
+  dplyr::mutate(inundation = as.factor(inundation),
+                slope = as.factor(slope),
+                impervious = as.factor(impervious))
+
+cv_labels <- cvdata[,"inundation"]
+cv_data <- cvdata[,-2]
+
+cvFit <- caret::train(x=cv_data, y=cv_labels, 
+               method="glm", family="binomial",
+               trControl = ctrl, model = FALSE)
+
+cvFit
+
+```
+
+```{r}
+ggplot(as.data.frame(cvFit$resample), aes(Accuracy)) + 
+  geom_histogram() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Accuracy",
+       y="Count")+
+  plotTheme1()
+```
+
+
+# Predictions
+```{r}
+calgary_allPredictions <- 
+  predict(cvFit, fishnet_calgary, type="prob")[,2]
+  
+fishnet_calgary <- 
+  cbind(fishnet_calgary,calgary_allPredictions) 
+
+fishnet_calgary1 <- fishnet_calgary %>%
+  mutate(PredClass = ifelse(calgary_allPredictions >= 0.5, 1, 0))
+
+fishnet_calgary1 <- fishnet_calgary1 %>%
+  mutate(Correct = ifelse(PredClass == 1, "1", "0"),
+         Incorrect = ifelse(PredClass != 1, "1", "0"))
+ggplot() + 
+    geom_sf(data= fishnet_calgary1, aes(fill=factor(ntile(allPredictions.1,5))), 
+            colour=NA) +
+    scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF","#0B0405FF"),
+                      labels=as.character(quantile(fishnet_calgary1$allPredictions.1,
+                                                 c(0,0.2,0.4,0.6,0.8),
+                                                 na.rm=T)),
+                      name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
+  mapTheme1() +
+   labs(title="Predicted Flooded Areas in Calgary")
+
+ggplot() + 
+    geom_sf(data= fishnet_calgary1, aes(fill=factor(ntile(PredClass,2))), 
+            colour=NA) +
+    scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF"),
+                      labels=as.character(quantile(fishnet_calgary1$PredClass,
+                                                 c(0,1),
+                                                 na.rm=T)),
+                      name="Predicted Outcome)") +
+  mapTheme1() +
+   labs(title="Predicted Flooded Areas in Calgary")
+
+```
+
+#Confusion Metrics -> Calgary
+```{r}
+fishnet_calgary1 %>%
+  mutate(confResult=case_when(calgary_allPredictions < .50 & inundation==0 ~ "True_Negative",
+                              calgary_allPredictions >= .50 & inundation==1 ~ "True_Positive",
+                              calgary_allPredictions < .50 & inundation==1 ~ "False_Negative",
+                              calgary_allPredictions >= .50 & inundation==0 ~ "False_Positive")) %>%
+  ggplot()+
+  geom_sf(aes(fill = confResult), color = "transparent")+
+  scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF"),
+                    name="Outcomes")+
+  labs(title="Confusion Metrics For Calgary") +
+  mapTheme1()
+```
+
+## Confusion Metrics -> Minneapolis
+```{r}
+fishnet_calgary1 %>%
+  mutate(confResult=case_when(minneapolis_allPredictions < .50 & inundation==0 ~ "True_Negative",
+                              minneapolis_allPredictions >= .50 & inundation==1 ~ "True_Positive",
+                              minneapolis_allPredictions < .50 & inundation==1 ~ "False_Negative",
+                              minneapolis_allPredictions >= .50 & inundation==0 ~ "False_Positive")) %>%
+  ggplot()+
+  geom_sf(aes(fill = confResult), color = "transparent")+
+  scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF"),
+                    name="Outcomes")+
+  labs(title="Confusion Metrics For Calgary") +
+  mapTheme1()
+```
+
+
+## Predictions for Minneapolis, MN
+```{r}
+minneapolis_allPredictions <- 
+  predict(cvFit, fishnet_minneapolis, type="prob")[,2] 
+
+minneapolis_pred <- 
+  cbind(fishnet_minneapolis,minneapolis_allPredictions) %>% 
+  mutate(minneapolis_allPredictions = round(minneapolis_allPredictions * 100))
+
+ggplot() + 
+  geom_sf(data=fishnet_minneapolis, aes(fill=factor(ntile(minneapolis_allPredictions,5))), 
+          colour=NA) +
+  scale_fill_manual(values = c("#DEF5E5FF","#49C1ADFF","#357BA2FF","#3E356BFF","#0B0405FF"),
+                    labels=as.character(quantile(fishnet_minneapolis$minneapolis_allPredictions,
+                                                 c(0.1,.2,.4,.6,.8),
+                                                 na.rm=T)),
+                    name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
+  mapTheme1() +
+  labs(title="Predicted Flooded Areas in Portland-Vancouver")
+```
+
+Spatial Cross Validation -> predicting policing lab? 
+
+# Discussion & Conclusion 
+blah blah blah
+
+
+[1] https://community.fema.gov/ProtectiveActions/s/article/Flood-Impact#:~:text=Floods%20can%20cause%20power%2C%20water,problems%20including%20landslides%20and%20mudslides.
